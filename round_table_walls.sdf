@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+
+  <model name="table_top">
+    <link name="table_top_link">
+      <inertial>
+        <mass>18.70</mass>
+        <pose>0.0 0.0 0.445 0 0 0</pose>
+        <inertia>
+            <ixx>0.619</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.374</iyy>
+            <iyz>0</iyz>
+            <izz>0.99</izz>
+        </inertia>
+      </inertial>
+      <visual name="bottom">
+        <pose>0.0 0.0 0.445 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>1.5</radius> <!-- Set the radius of the table -->
+            <length>0.015</length> <!-- Set the thickness of the table -->
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.9 0.9 0.9 1.0</diffuse>
+        </material>
+      </visual>
+      <collision name="bottom">
+        <pose>0.0 0.0 0.445 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>1.5</radius> <!-- Match the radius of the table -->
+            <length>0.015</length> <!-- Match the thickness of the table -->
+          </cylinder>
+        </geometry>
+        <drake:proximity_properties>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>1.0e8</drake:hydroelastic_modulus>
+        </drake:proximity_properties>
+      </collision>
+
+      <!-- Wall along the positive X-axis -->
+      <visual name="wall_x_positive">
+        <pose>1.0 0 0.46 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.05 0.6</size> <!-- Extends two-thirds into the table -->
+          </box>
+        </geometry>
+        <material>
+          <diffuse>0.6 0.6 0.6 1.0</diffuse>
+        </material>
+      </visual>
+      <collision name="wall_x_positive">
+        <pose>1.0 0 0.46 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.05 0.6</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <!-- Wall along the negative X-axis -->
+      <visual name="wall_x_negative">
+        <pose>-1.0 0 0.46 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.05 0.6</size> <!-- Extends two-thirds into the table -->
+          </box>
+        </geometry>
+        <material>
+          <diffuse>0.6 0.6 0.6 1.0</diffuse>
+        </material>
+      </visual>
+      <collision name="wall_x_negative">
+        <pose>-1.0 0 0.46 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.05 0.6</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <!-- Wall along the positive Y-axis -->
+      <visual name="wall_y_positive">
+        <pose>0 1.0 0.46 0 0 1.5708</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.05 0.6</size> <!-- Extends two-thirds into the table -->
+          </box>
+        </geometry>
+        <material>
+          <diffuse>0.6 0.6 0.6 1.0</diffuse>
+        </material>
+      </visual>
+      <collision name="wall_y_positive">
+        <pose>0 1.0 0.46 0 0 1.5708</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.05 0.6</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <!-- Wall along the negative Y-axis -->
+      <visual name="wall_y_negative">
+        <pose>0 -1.0 0.46 0 0 1.5708</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.05 0.6</size> <!-- Extends two-thirds into the table -->
+          </box>
+        </geometry>
+        <material>
+          <diffuse>0.6 0.6 0.6 1.0</diffuse>
+        </material>
+      </visual>
+      <collision name="wall_y_negative">
+        <pose>0 -1.0 0.46 0 0 1.5708</pose>
+        <geometry>
+          <box>
+            <size>1.0 0.05 0.6</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <frame name="table_top_center">
+      <pose relative_to="table_top_link">0 0 0.47 0 0 0</pose>
+    </frame>
+  </model>
+
+</sdf>

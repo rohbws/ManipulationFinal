@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+
+  <model name="spherical_mole">
+    <link name="sphere_link">
+      <!-- Inertial properties for the sphere -->
+      <inertial>
+        <mass>10.0</mass> <!-- Adjust mass as needed -->
+        <pose>0 0 0 0 0 0</pose>
+        <inertia>
+          <ixx>0.1</ixx>  <!-- Adjust inertia values -->
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyy>0.1</iyy>
+          <iyz>0.0</iyz>
+          <izz>0.1</izz>
+        </inertia>
+      </inertial>
+
+      <!-- Visual for the stick (handle) -->
+    <visual name="stick_visual">
+      <pose>0 0 0 0 0 0</pose>  <!-- Stick base pos, z = 3rd item -->
+      <geometry>
+        <cylinder>
+          <radius>0.07</radius>  <!-- Thinner stick: reduce radius -->
+          <length>0.07</length>   <!-- Longer stick: increase length -->
+        </cylinder>
+      </geometry>
+      <material>
+          <ambient>1.0 0.0 0.0 1</ambient>  <!-- Red -->
+          <diffuse>1.0 0.0 0.0 1</diffuse>  <!-- Red -->
+          <specular>0.5 0.5 0.5 1</specular> <!-- Specular highlight -->
+      </material>
+    </visual>
+
+    <!-- Collision for the stick (handle) -->
+    <collision name="stick_collision">
+      <pose>0 0 0 0 0 0</pose>  <!-- Stick base pos, z = 3rd item -->
+      <geometry>
+        <cylinder>
+          <radius>0.07</radius>  <!-- Thinner stick: reduce radius -->
+          <length>0.07</length>   <!-- Longer stick: increase length -->
+        </cylinder>
+      </geometry>
+      <drake:proximity_properties>
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>1.0e8</drake:hydroelastic_modulus>
+        </drake:proximity_properties>
+    </collision>
+
+      <!-- Visual properties for the sphere -->
+      <visual name="visual">
+        <pose>0 0 0.07 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.07</radius>  <!-- Adjust radius -->
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>1.0 0.0 0.0 1</ambient>  <!-- Red -->
+          <diffuse>1.0 0.0 0.0 1</diffuse>  <!-- Red -->
+          <specular>0.5 0.5 0.5 1</specular> <!-- Specular highlight -->
+        </material>
+      </visual>
+
+      <!-- Collision properties for the sphere -->
+      <collision name="collision">
+        <pose>0 0 0.07 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.07</radius>  <!-- Adjust radius -->
+          </sphere>
+        </geometry>
+        <drake:proximity_properties>
+          <!-- Adding hydroelastic properties -->
+          <drake:compliant_hydroelastic/>
+          <drake:mesh_resolution_hint>0.01</drake:mesh_resolution_hint>
+          <drake:hydroelastic_modulus>1.0e8</drake:hydroelastic_modulus>
+        </drake:proximity_properties>
+      </collision>
+    </link>
+  </model>
+
+</sdf>
