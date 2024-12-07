@@ -889,7 +889,8 @@ meshcat.StartRecording()
 mole_pos = spawn_mole(0, plant, simulator)
 try:
     simulator.AdvanceTo(simulator.get_context().get_time() + 30)
-except:
+except Exception as e:
+    print(e)
     pass
 meshcat.PublishRecording()
 
