@@ -2,7 +2,7 @@
 LOCAL_PATH_ROHAN = "file:///home/rbosworth/Diffusion/ManipFinalProject/assets/"
 LOCAL_PATH_RICHARD = "file:///Users/earlight/Desktop/MIT/-Fall-2024/6.4210/project/ManipulationFinal/assets/"
 
-LOCAL_PATH = LOCAL_PATH_RICHARD # Change this to LOCAL_PATH_ROHAN if you are Rohan
+LOCAL_PATH = LOCAL_PATH_ROHAN # Change this to LOCAL_PATH_ROHAN if you are Rohan
 
 # Cell
 import numpy as np
@@ -105,7 +105,7 @@ meshcat.SetProperty("/Axes", "visible", False)
 meshcat.SetProperty("/drake/contact_forces", "visible", False)
 
 # Cell
-MOLE_COUNT = 1  # Change this value to spawn more moles
+MOLE_COUNT = 3  # Change this value to spawn more moles
 MAIN_TABLE_COORDS = [0, 0, 0]
 STORAGE_TABLE_COORDS = [100, 0, 0]
 MOLE_COORDS = [[STORAGE_TABLE_COORDS[j] + (-1 + 0.2 * i if j == 0 else 0) for j in range(3)] for i in range(MOLE_COUNT)]
@@ -130,7 +130,7 @@ scenario_data_multiple = f'''
 
     - add_model:
         name: main_table
-        file: {LOCAL_PATH}round_table.sdf
+        file: {LOCAL_PATH}round_table_walls.sdf
     - add_weld:
         parent: world
         child: main_table::table_top_center
@@ -291,9 +291,21 @@ def despawn_mole(instance, plant, simulator):
     context = plant.GetMyMutableContextFromRoot(simulator.get_mutable_context())
     plant.SetFreeBodyPose(context, mole_body, RigidTransform(MOLE_COORDS[instance]))
 
+def despawn_close_mole(plant, simulator, ee_position):
+    for i in range(3):
+        mole_instance = f"sphere_mole_{i+1:02d}"
+        mole_model_instance = plant.GetModelInstanceByName(mole_instance)
+        mole_body = plant.GetBodyByName("sphere_link", mole_model_instance)
+        context = plant.GetMyMutableContextFromRoot(simulator.get_mutable_context())
+        mole_position = plant.EvalBodyPoseInWorld(context, mole_body).translation()
+        if np.linalg.norm(mole_position[:2] - ee_position[:2]) < 0.1:
+            despawn_mole(i, plant, simulator)
+            spawn_mole(i, plant, simulator)
+
 # Cell
 iris_options = IrisOptions()
 iris_options.iteration_limit = 10
+iris_options.configuration_space_margin = 0.00001
 # increase num_collision_infeasible_samples to improve the (probabilistic)
 # certificate of having no collisions.
 iris_options.num_collision_infeasible_samples = 3
@@ -306,11 +318,74 @@ iris_options.termination_threshold = -1
 # If use_existing_regions_as_obstacles is True, then iris_regions will be
 # shrunk by regions_as_obstacles_margin, and then passed to
 # iris_options.configuration_obstacles.
-use_existing_regions_as_obstacles = True
+use_existing_regions_as_obstacles = False
 regions_as_obstacles_scale_factor = 0.95
 
 # Cell
 iris_regions = LoadIrisRegionsYamlFile("iiwa_regions.yaml")
+
+def LoadRobotIRIS(plant: MultibodyPlant):
+    """Setup your plant, and return the body corresponding to your
+    end-effector."""
+    parser = Parser(plant)
+
+    # We'll use some tables, shelves, and bins from a remote resource.
+    parser.package_map().AddRemote(
+        package_name="gcs",
+        params=PackageMap.RemoteParams(
+            urls=[
+                f"https://github.com/mpetersen94/gcs/archive/refs/tags/arxiv_paper_version.tar.gz"
+            ],
+            sha256=("6dd5e841c8228561b6d622f592359c36517cd3c3d5e1d3e04df74b2f5435680c"),
+            strip_prefix="gcs-arxiv_paper_version",
+        ),
+    )
+
+    model_directives = f"""    
+directives:
+
+# Add iiwa
+- add_model:
+    name: iiwa
+    file: package://drake_models/iiwa_description/sdf/iiwa7_no_collision.sdf
+    default_joint_positions:
+        iiwa_joint_1: [0]
+        iiwa_joint_2: [0.3]
+        iiwa_joint_3: [0]
+        iiwa_joint_4: [-1.8]
+        iiwa_joint_5: [0]
+        iiwa_joint_6: [1]
+        iiwa_joint_7: [1.57]
+
+- add_weld:
+    parent: world
+    child: iiwa::iiwa_link_0
+
+# Add schunk
+- add_model:
+    name: wsg
+    file: package://drake_models/wsg_50_description/sdf/schunk_wsg_50_welded_fingers.sdf
+
+- add_weld:
+    parent: iiwa::iiwa_link_7
+    child: wsg::body
+    X_PC:
+      translation: [0, 0, 0.06]
+      rotation: !Rpy {{ deg: [90.0, 0.0, 90.0 ]}}
+
+- add_model:
+    name: main_table
+    file: {LOCAL_PATH}round_table_walls.sdf
+- add_weld:
+    parent: world
+    child: main_table::table_top_center
+    X_PC:
+        translation: [0, 0, 0]
+"""
+
+    parser.AddModelsFromString(model_directives, ".dmd.yaml")
+
+    return plant
 
 def LoadRobot(plant: MultibodyPlant):
     """Setup your plant, and return the body corresponding to your
@@ -335,7 +410,7 @@ directives:
 # Add iiwa
 - add_model:
     name: iiwa
-    file: package://drake_models/iiwa_description/urdf/iiwa14_primitive_collision.urdf
+    file: package://drake_models/iiwa_description/sdf/iiwa7_no_collision.sdf
     default_joint_positions:
         iiwa_joint_1: [0]
         iiwa_joint_2: [0.3]
@@ -347,7 +422,7 @@ directives:
 
 - add_weld:
     parent: world
-    child: iiwa::base
+    child: iiwa::iiwa_link_0
 
 # Add schunk
 - add_model:
@@ -358,8 +433,8 @@ directives:
     parent: iiwa::iiwa_link_7
     child: wsg::body
     X_PC:
-      translation: [0, 0, 0.05]
-      rotation: !Rpy {{ deg: [90.0, 0.0, 0.0 ]}}
+      translation: [0, 0, 0.06]
+      rotation: !Rpy {{ deg: [90.0, 0.0, 90.0 ]}}
 
 - add_model:
     name: main_table
@@ -400,7 +475,7 @@ def _CheckNonEmpty(region):
 def _CalcRegion(name, seed):
     builder = DiagramBuilder()
     plant = AddMultibodyPlantSceneGraph(builder, 0.0)[0]
-    LoadRobot(plant)
+    LoadRobotIRIS(plant)
     plant.Finalize()
     diagram = builder.Build()
     diagram_context = diagram.CreateDefaultContext()
@@ -414,8 +489,7 @@ def _CalcRegion(name, seed):
         ]
         for h in iris_options.configuration_obstacles:
             _CheckNonEmpty(h)
-    else:
-        iris_options.configuration_obstacles = None
+
     display(f"Computing region for seed: {name}")
     start_time = time.time()
     hpoly = IrisInConfigurationSpace(plant, plant_context, iris_options)
@@ -433,7 +507,7 @@ def _CalcRegion(name, seed):
 def GenerateRegion(name, seed):
     global iris_regions
     iris_regions[name] = _CalcRegion(name, seed)
-    SaveIrisRegionsYamlFile(f"iiwa_regions.yaml", iris_regions)
+    #SaveIrisRegionsYamlFile(f"iiwa_regions.yaml", iris_regions)
 
 # Cell
 class PlantIK():
@@ -478,6 +552,7 @@ class Planner():
         # self.trajOpt = KinematicTrajectoryOptimization(plant.num_positions(), 10)
         self.trajOpt = GcsTrajectoryOptimization(7) # testing
         self.trajOpt.AddPathLengthCost()
+        self.trajOpt.AddTimeCost()
 
         velocity_lb = plant.GetVelocityLowerLimits()[:7]
         velocity_ub = plant.GetVelocityUpperLimits()[:7]
@@ -569,8 +644,6 @@ class TrajectoryFollower(LeafSystem):
         self.iiwa_pos = self.DeclareVectorInputPort("iiwa_pos", 7)
         self.ik_sol = self.DeclareVectorInputPort("IK_solution", 7)
 
-        self.contact = self.DeclareAbstractInputPort("contact", AbstractValue.Make(ContactResults()))
-
         self.planner = Planner(plant)
 
         self.plant = plant
@@ -579,6 +652,8 @@ class TrajectoryFollower(LeafSystem):
         self.traj = None
 
         self.first = True
+
+        self.prior = False
 
         self.traj_start = 0
 
@@ -607,6 +682,7 @@ class TrajectoryFollower(LeafSystem):
 
             
         if self.state == 0:
+            print("running to mole")
 
             current_time = context.get_time()
 
@@ -637,27 +713,29 @@ class TrajectoryFollower(LeafSystem):
             pairs = [(a, b) for a in mole_indices for b in wsg_indices]
 
 
-            curr_contact = self.contact.Eval(context)
-
-
-            for i in range(curr_contact.num_point_pair_contacts()):
-                contact_pair = curr_contact.point_pair_contact_info(i)
-                a = contact_pair.bodyA_index()
-                b = contact_pair.bodyB_index()
-
-                print((a, b))
-
-                if (a, b) in pairs or (b, a) in pairs:
-                    contact = True
-                    break
+            contact = self.start_height - current_height > 0.005
             
             if contact:
                 print("contact made")
-                despawn_mole(0, plant, simulator)                
-                spawn_mole(0, plant, simulator)
+                despawn_close_mole(plant, simulator, self.plant.EvalBodyPoseInWorld(plant_cont, self.plant.GetBodyByName("body")).translation())
+                if self.prior:
+                    despawn_mole(0, plant, simulator)
+                    despawn_mole(1, plant, simulator)
+                    despawn_mole(2, plant, simulator)
+                    spawn_mole(0, plant, simulator)
+                    spawn_mole(1, plant, simulator)
+                    spawn_mole(2, plant, simulator)
 
                 target_pos = self.ik_sol.Eval(context)
-                start_pos = self.iiwa_pos.Eval(context)
+                
+                if sum(target_pos) == 0:
+                    self.prior = True
+                    output.SetFromVector(self.iiwa_pos.Eval(context))
+                    return
+
+
+                self.prior = False
+                start_pos = self.iiwa_pos.Eval(context)                
 
                 self.traj = self.planner.solve_path(start_pos, target_pos)
 
@@ -742,62 +820,67 @@ class Perception(LeafSystem):
 
     def identify_moles(self, context, output):
         ik_found = False
-        while ik_found == False:
-            current_time = context.get_time()
-            if (self._last_processed_time and current_time - self._last_processed_time < PROCESSING_TIME):
-                return
-            self._last_processed_time = current_time
 
-            # Retrieve the point cloud, but Eval(context) too slow
-            point_clouds = [self.point_cloud1.Eval(context), self.point_cloud2.Eval(context), self.point_cloud3.Eval(context), self.point_cloud4.Eval(context)]
+        current_time = context.get_time()
+        if (self._last_processed_time and current_time - self._last_processed_time < PROCESSING_TIME):
+            ...
+        self._last_processed_time = current_time
 
-            point_clouds = [point_cloud.Crop(self.crop_lower, self.crop_upper) for point_cloud in point_clouds]
+        # Retrieve the point cloud, but Eval(context) too slow
+        point_clouds = [self.point_cloud1.Eval(context), self.point_cloud2.Eval(context), self.point_cloud3.Eval(context), self.point_cloud4.Eval(context)]
 
-            merged_cloud = Concatenate(point_clouds)
-            
-            # Process the point cloud: crop and downsample
-            rgbs_1 = merged_cloud.rgbs().T
-            point_cloud_1 = merged_cloud.xyzs().T
-            
-            # Apply DBSCAN
-            dbscan = DBSCAN(eps=0.1, min_samples=3).fit(point_cloud_1).labels_
-            
-            # Group points by labels into lists
-            clustered_points = {label : [] for label in set(dbscan)}
-            rgb_points = {label : [] for label in set(dbscan)}
-            
-            for i, label in enumerate(dbscan):
+        point_clouds = [point_cloud.Crop(self.crop_lower, self.crop_upper) for point_cloud in point_clouds]
 
-                clustered_points[label].append(point_cloud_1[i])
-                rgb_points[label].append(rgbs_1[i])
-
-            for k in list(clustered_points.keys()):
-
-                v = clustered_points[k]
-
-                clust_center = np.mean(v, axis=0)
-
-                rgb = np.mean(rgb_points[k], axis=0)
-
-                print("cluster: ", k, "mean: ", clust_center, "rgb: ", rgb)
-
-                if np.linalg.norm(clust_center[:2]) < 0.1 or rgb[0] < 80 or np.var(rgb) < 10:
-                    del clustered_points[k]
-            
-            self.means = []
-            for k, v in clustered_points.items():
-                self.means.append(np.mean(v, axis=0))
-                # print("cluster: ", k, "mean: ", self.means[-1])
-            
-            print("Perceived mole location:", np.array(self.means[0]) + np.array([0, 0, 0.25]))
+        merged_cloud = Concatenate(point_clouds)
         
-            ik_sol = self.ik.do_ik(np.array(self.means[0]) + np.array([0, 0, 0.25])) # length 9 numpy array
+        # Process the point cloud: crop and downsample
+        rgbs_1 = merged_cloud.rgbs().T
+        point_cloud_1 = merged_cloud.xyzs().T
+        
+        # Apply DBSCAN
+        dbscan = DBSCAN(eps=0.1, min_samples=3).fit(point_cloud_1).labels_
+        
+        # Group points by labels into lists
+        clustered_points = {label : [] for label in set(dbscan)}
+        rgb_points = {label : [] for label in set(dbscan)}
+        
+        for i, label in enumerate(dbscan):
 
-            if ik_sol[0] == None:
-                despawn_mole(0, plant, simulator)                
-                spawn_mole(0, plant, simulator)
-            else:
-                ik_found = True
+            clustered_points[label].append(point_cloud_1[i])
+            rgb_points[label].append(rgbs_1[i])
+
+        for k in list(clustered_points.keys()):
+
+            v = clustered_points[k]
+
+            clust_center = np.mean(v, axis=0)
+
+            rgb = np.mean(rgb_points[k], axis=0)
+
+            print("cluster: ", k, "mean: ", clust_center, "rgb: ", rgb)
+
+            if np.linalg.norm(clust_center[:2]) < 0.1 or rgb[0] < 80 or np.var(rgb) < 10:
+                del clustered_points[k]
+        
+        self.means = []
+        for k, v in clustered_points.items():
+            self.means.append(np.mean(v, axis=0))
+            # print("cluster: ", k, "mean: ", self.means[-1])
+
+        ind = np.random.randint(0, len(self.means))
+        
+        print("Perceived mole location:", np.array(self.means[ind]) + np.array([0, 0, 0.25]))
+    
+        ik_sol = self.ik.do_ik(np.array(self.means[ind]) + np.array([0, 0, 0.25])) # length 9 numpy array
+
+        if ik_sol[0] == None:
+            pass
+        else:
+            print("ik sol: ", ik_sol)
+            ik_found = True
+
+        if not ik_found:
+            ik_sol = np.zeros(9)
 
         output.SetFromVector(ik_sol[:-2])
     
@@ -825,23 +908,13 @@ plant_robot = MakeMultibodyPlant(
 trajectory_follower = builder.AddSystem(TrajectoryFollower(plant_robot, plant))
 perception = builder.AddSystem(Perception(plant_robot))
 
-builder.Connect(
-    station.GetOutputPort("contact_results"),
-    trajectory_follower.GetInputPort("contact")
-)
-
-delay = builder.AddSystem(DiscreteTimeDelay(update_sec=0.001,delay_time_steps=1, vector_size=7))
 
 
 builder.Connect(
     trajectory_follower.get_output_port(),
-    delay.get_input_port(),
-)
-
-builder.Connect(
-    delay.get_output_port(),
     station.GetInputPort("iiwa.position"),
 )
+
 
 builder.Connect(
     station.GetOutputPort("iiwa.position_measured"),
@@ -886,7 +959,10 @@ simulator.set_target_realtime_rate(0) # supposedly 0 makes it run as fast as pos
 
 # Do simulation
 meshcat.StartRecording()
-mole_pos = spawn_mole(0, plant, simulator)
+mole_pos_0 = spawn_mole(0, plant, simulator)
+mole_pos_1 = spawn_mole(1, plant, simulator)
+mole_pos_2 = spawn_mole(2, plant, simulator)
+
 try:
     simulator.AdvanceTo(simulator.get_context().get_time() + 30)
 except Exception as e:
