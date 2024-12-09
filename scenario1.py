@@ -4,6 +4,8 @@ LOCAL_PATH_RICHARD = "file:///Users/earlight/Desktop/MIT/-Fall-2024/6.4210/proje
 
 LOCAL_PATH = LOCAL_PATH_RICHARD # Change this to LOCAL_PATH_ROHAN if you are Rohan
 
+total_moles_contacted = 0
+
 # Cell
 import numpy as np
 import time
@@ -105,7 +107,7 @@ meshcat.SetProperty("/Axes", "visible", False)
 meshcat.SetProperty("/drake/contact_forces", "visible", False)
 
 # Cell
-MOLE_COUNT = 3  # Change this value to spawn more moles
+MOLE_COUNT = 1  # Change this value to spawn more moles
 MAIN_TABLE_COORDS = [0, 0, 0]
 STORAGE_TABLE_COORDS = [100, 0, 0]
 MOLE_COORDS = [[STORAGE_TABLE_COORDS[j] + (-1 + 0.2 * i if j == 0 else 0) for j in range(3)] for i in range(MOLE_COUNT)]
@@ -130,7 +132,7 @@ scenario_data_multiple = f'''
 
     - add_model:
         name: main_table
-        file: {LOCAL_PATH}round_table_walls.sdf
+        file: {LOCAL_PATH}round_table.sdf
     - add_weld:
         parent: world
         child: main_table::table_top_center
@@ -251,15 +253,15 @@ scenario_data_multiple = f'''
 
 
 # Cell
-MAX_SPAWN_DISTANCE = 0.7
-MIN_SPAWN_DISTANCE = 0.7
+MAX_SPAWN_DISTANCE = 0.9
+MIN_SPAWN_DISTANCE = 0.9
 
 def spawn_mole(instance, plant, simulator):
     "Returns the position of the spawned mole"
 
     # Generate random position on the table
     mole_distance = np.random.uniform(MIN_SPAWN_DISTANCE, MAX_SPAWN_DISTANCE)
-    mole_angle = np.random.uniform(-np.pi, np.pi)
+    mole_angle = np.random.uniform(np.pi, np.pi * 3 / 2) # scenario 1: spawn moles in 90 degrees in front of the robot
     mole_position = [
         mole_distance * np.sin(mole_angle), 
         mole_distance * np.cos(mole_angle), 
@@ -292,7 +294,7 @@ def despawn_mole(instance, plant, simulator):
     plant.SetFreeBodyPose(context, mole_body, RigidTransform(MOLE_COORDS[instance]))
 
 def despawn_close_mole(plant, simulator, ee_position):
-    for i in range(3):
+    for i in range(MOLE_COUNT):
         mole_instance = f"sphere_mole_{i+1:02d}"
         mole_model_instance = plant.GetModelInstanceByName(mole_instance)
         mole_body = plant.GetBodyByName("sphere_link", mole_model_instance)
@@ -375,7 +377,7 @@ directives:
 
 - add_model:
     name: main_table
-    file: {LOCAL_PATH}round_table_walls.sdf
+    file: {LOCAL_PATH}round_table.sdf
 - add_weld:
     parent: world
     child: main_table::table_top_center
@@ -438,7 +440,7 @@ directives:
 
 - add_model:
     name: main_table
-    file: {LOCAL_PATH}round_table_walls.sdf
+    file: {LOCAL_PATH}round_table.sdf
 - add_weld:
     parent: world
     child: main_table::table_top_center
@@ -714,15 +716,15 @@ class TrajectoryFollower(LeafSystem):
             contact = self.start_height - current_height > 0.005
             
             if contact:
+                print("=========================================================================")
                 print("contact made")
+                total_moles_contacted += 1
                 despawn_close_mole(plant, simulator, self.plant.EvalBodyPoseInWorld(plant_cont, self.plant.GetBodyByName("body")).translation())
                 if self.prior:
-                    despawn_mole(0, plant, simulator)
-                    despawn_mole(1, plant, simulator)
-                    despawn_mole(2, plant, simulator)
-                    spawn_mole(0, plant, simulator)
-                    spawn_mole(1, plant, simulator)
-                    spawn_mole(2, plant, simulator)
+                    for i in range(MOLE_COUNT):
+                        despawn_mole(i, plant, simulator)
+                    for i in range(MOLE_COUNT):
+                        spawn_mole(i, plant, simulator)
 
                 target_pos = self.ik_sol.Eval(context)
                 
@@ -957,19 +959,19 @@ simulator.set_target_realtime_rate(0) # supposedly 0 makes it run as fast as pos
 
 # Do simulation
 meshcat.StartRecording()
-mole_pos_0 = spawn_mole(0, plant, simulator)
-mole_pos_1 = spawn_mole(1, plant, simulator)
-mole_pos_2 = spawn_mole(2, plant, simulator)
+for i in range(MOLE_COUNT):
+    spawn_mole(i, plant, simulator)
 
 try:
-    simulator.AdvanceTo(simulator.get_context().get_time() + 30)
+    simulator.AdvanceTo(simulator.get_context().get_time() + 60)
 except Exception as e:
     print(e)
     pass
 meshcat.PublishRecording()
 
 TOTAL_END_TIME = time.time()
-print("Total time taken: ", TOTAL_END_TIME - TOTAL_START_TIME)
+print("Total execution time: ", TOTAL_END_TIME - TOTAL_START_TIME)
+print("Total moles contacted: ", total_moles_contacted)
 
 # don't end the simulation until the user inputs to end it
 
