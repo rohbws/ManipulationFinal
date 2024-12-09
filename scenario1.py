@@ -121,7 +121,7 @@ mole_directives = "\n".join(
         file: {LOCAL_PATH}sphere_mole.sdf
         default_free_body_pose:
             __model__:
-                translation: {MOLE_COORDS[i]}
+                translation: [{MOLE_COORDS[i][0]}, {MOLE_COORDS[i][1]}, 0.015]
     """ for i in range(MOLE_COUNT)
 )
 
@@ -253,7 +253,7 @@ scenario_data_multiple = f'''
 
 
 # Cell
-MAX_SPAWN_DISTANCE = 0.9
+MAX_SPAWN_DISTANCE = 0.6
 MIN_SPAWN_DISTANCE = 0.9
 
 def spawn_mole(instance, plant, simulator):
@@ -261,7 +261,7 @@ def spawn_mole(instance, plant, simulator):
 
     # Generate random position on the table
     mole_distance = np.random.uniform(MIN_SPAWN_DISTANCE, MAX_SPAWN_DISTANCE)
-    mole_angle = np.random.uniform(np.pi, np.pi * 3 / 2) # scenario 1: spawn moles in 90 degrees in front of the robot
+    mole_angle = np.random.uniform(np.pi / 4, np.pi * 3 / 4) # scenario 1: spawn moles in 90 degrees in front of the robot
     mole_position = [
         mole_distance * np.sin(mole_angle), 
         mole_distance * np.cos(mole_angle), 
@@ -718,6 +718,7 @@ class TrajectoryFollower(LeafSystem):
             if contact:
                 print("=========================================================================")
                 print("contact made")
+                global total_moles_contacted
                 total_moles_contacted += 1
                 despawn_close_mole(plant, simulator, self.plant.EvalBodyPoseInWorld(plant_cont, self.plant.GetBodyByName("body")).translation())
                 if self.prior:
